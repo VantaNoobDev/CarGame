@@ -92,6 +92,7 @@ return {
 
 	-- Base based. --
 	Spawning = {}, -- Depends on BASE
+	Stealing = {}, -- Depends on DATA, SPAWNING, BASE --
 
 	-- Economy based. --
 	Base = {}, -- Depends on ECONOMY
