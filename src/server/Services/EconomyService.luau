@@ -1,14 +1,29 @@
 --!strict
 --!native
 local ServerScriptService = game:GetService("ServerScriptService")
+local ServiceTypes = require(ServerScriptService.Server.Core.Types.ServiceTypes)
 local DataService = require(ServerScriptService.ServerPackages.DataService).server
+
+DataService:init({
+	template = {
+		Cash = 0,
+		RobloxInventory = {},
+		Inventory = {},
+		Slots = {},
+		Index = {},
+		LastSeen = 0,
+		IncomePerSecond = 0,
+		OfflineCap = 28800,
+	},
+})
+
 local EconomyService = {}
 EconomyService.__index = EconomyService
 
-function EconomyService.new(Player: Player)
+function EconomyService.new(Player: Player): ServiceTypes.Economy
 	return setmetatable({
 		Player = Player,
-	}, EconomyService)
+	}, EconomyService) :: any
 end
 
 function EconomyService:AddCurrency(Amount: number, Value: string): ()
@@ -29,13 +44,10 @@ end
 
 function EconomyService:AddTable(InfoToBeChanged: string, InfoToBeAdded: string, Value: string): ()
 	DataService:update(self.Player, { InfoToBeChanged, InfoToBeAdded }, function(ValueThing)
-		if InfoToBeChanged == "Inventory" then
+		if InfoToBeChanged == "Inventory" or InfoToBeChanged == "Index" then
 			return not ValueThing
 		end
-		if InfoToBeChanged == "Slots" then
-			return Value
-		end
-		if InfoToBeChanged == "RobloxInventory" then
+		if InfoToBeChanged == "Slots" or InfoToBeChanged == "RobloxInventory" then
 			return Value
 		end
 		return ValueThing
@@ -44,11 +56,9 @@ end
 
 function EconomyService:RemoveTable(InfoToBeChanged: string, InfoToBeRemoved: string, Value: string): ()
 	DataService:update(self.Player, { InfoToBeChanged, InfoToBeRemoved }, function(ValueThing)
-		if InfoToBeChanged == "Inventory" then
+		if InfoToBeChanged == "Inventory" or InfoToBeChanged == "Index" then
 			return not ValueThing
-		elseif InfoToBeChanged == "Slots" then
-			return nil
-		elseif InfoToBeChanged == "RobloxInventory" then
+		elseif InfoToBeChanged == "Slots" or InfoToBeChanged == "RobloxInventory" then
 			return nil
 		end
 		return ValueThing
@@ -57,14 +67,11 @@ end
 
 function EconomyService:ResetTable(InfoToBeChanged: string): ()
 	DataService:update(self.Player, { InfoToBeChanged }, function(ValueThing)
-		if InfoToBeChanged == "Inventory" then
+		if InfoToBeChanged then
 			return {}
-		elseif InfoToBeChanged == "Slots" then
-			return {}
-		elseif InfoToBeChanged == "RobloxInventory" then
-			return {}
+		else
+			return ValueThing
 		end
-		return ValueThing
 	end)
 end
 
