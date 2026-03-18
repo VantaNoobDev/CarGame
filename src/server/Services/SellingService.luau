@@ -3,26 +3,26 @@
 local EconomyService = require(script.Parent.EconomyService)
 local GearService = require(script.Parent.GearService)
 
-local Shop: Model | Folder | BasePart
-local ShopService = {}
+local Sell: Model | Folder | BasePart
+local SellingService = {}
 
 local Conn: RBXScriptConnection
 
-function ShopService.AddShop(ShopChosen: Model | Folder | BasePart): ()
-	if ShopChosen then
-		Shop = ShopChosen
+function SellingService.AddSell(SellChosen: Model | Folder | BasePart): ()
+	if SellChosen then
+		Sell = SellChosen
 	end
 end
 
-function ShopService:Init()
-	if Shop then
-		local Prompt = Shop:WaitForChild("Stand") :: ProximityPrompt
+function SellingService:Init()
+	if Sell then
+		local Prompt = Sell:WaitForChild("Stand") :: ProximityPrompt
 		assert(Prompt, "Selling part from prompt not found!")
 
 		local Connection = Prompt.Triggered:Connect(function(Player: Player) end) -- No shop npc?
 		Conn = Connection
 
-		Shop.ChildRemoved:Connect(function(Part: Instance)
+		Sell.ChildRemoved:Connect(function(Part: Instance)
 			if Part.Name == "Stand" then
 				Conn:Disconnect()
 			end
@@ -30,4 +30,4 @@ function ShopService:Init()
 	end
 end
 
-return ShopService
+return SellingService

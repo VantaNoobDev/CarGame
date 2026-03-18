@@ -1,0 +1,3 @@
+local SpawningService = {}
+
+return SpawningService

@@ -11,4 +11,21 @@ export type Economy = {
 	Get: (self: Economy, Value: string) -> number | string | { any? },
 }
 
+export type Gear = {
+	new: (Player: Player, EquippedItem: string) -> Gear,
+	EquipGear: (
+		self: Gear,
+		GearType: GearData,
+		Name: string,
+		ToolTip: string,
+		Model: Model | Folder,
+		GearId: number
+	) -> (),
+	UnEquipGear: (self: Gear, GearId: number) -> (),
+	Get: (self: Gear) -> string?,
+}
+
+export type EconomyData = "Inventory" | "Index" | "Slots" | "RobloxInventory"
+export type GearData = "Usable" | "ItemForBase"
+
 return {}

@@ -54,7 +54,11 @@ function EconomyService:AddTable(InfoToBeChanged: string, InfoToBeAdded: string,
 	end)
 end
 
-function EconomyService:RemoveTable(InfoToBeChanged: string, InfoToBeRemoved: string, Value: string): ()
+function EconomyService:RemoveTable(
+	InfoToBeChanged: ServiceTypes.EconomyData,
+	InfoToBeRemoved: string,
+	Value: string
+): ()
 	DataService:update(self.Player, { InfoToBeChanged, InfoToBeRemoved }, function(ValueThing)
 		if InfoToBeChanged == "Inventory" or InfoToBeChanged == "Index" then
 			return not ValueThing
@@ -65,7 +69,7 @@ function EconomyService:RemoveTable(InfoToBeChanged: string, InfoToBeRemoved: st
 	end)
 end
 
-function EconomyService:ResetTable(InfoToBeChanged: string): ()
+function EconomyService:ResetTable(InfoToBeChanged: ServiceTypes.EconomyData): ()
 	DataService:update(self.Player, { InfoToBeChanged }, function(ValueThing)
 		if InfoToBeChanged then
 			return {}
