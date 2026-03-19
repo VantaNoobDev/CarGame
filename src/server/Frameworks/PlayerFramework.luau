@@ -7,29 +7,65 @@ local Types = require(script.Parent.Parent.Core.Types.ServiceTypes)
 
 local EconomyService = Services.EconomyService :: Types.Economy
 local GearService = Services.GearService :: Types.Gear
+local BaseService = Services.BaseService :: Types.Base
 
-local EconomyOfPlayers = setmetatable({}, { __mode = "k" }) :: { [Player]: Types.Economy }
-local GearOfPlayers = setmetatable({}, { __mode = "k" }) :: { [Player]: Types.Gear }
+local EconomyOfPlayers: { [Player]: Types.Economy } = {}
+local GearOfPlayers: { [Player]: Types.Gear } = {}
+local BaseOfPlayers: { [Player]: Types.Base } = {}
 
 local Framework = {
 	Join = function(Player: Player): ()
 		EconomyOfPlayers[Player] = EconomyService.new(Player)
-		GearOfPlayers[Player] = GearService.new(Player, "")
-		return
+		GearOfPlayers[Player] = GearService.new(Player)
+		BaseOfPlayers[Player] = BaseService.new(Player)
+
+		BaseOfPlayers[Player]:AddToBase()
+		GearOfPlayers[Player]:EquipGear("Usable", "Slap glove.", "Use it to slap people!", Instance.new("Model"), 1)
 	end,
 
 	Leave = function(Player: Player): ()
-		EconomyOfPlayers[Player] = nil
-		GearOfPlayers[Player] = nil
-		return
+		if EconomyOfPlayers[Player] then
+			EconomyOfPlayers[Player]:Destroy()
+			EconomyOfPlayers[Player] = nil
+		end
+
+		if GearOfPlayers[Player] then
+			GearOfPlayers[Player]:Destroy()
+			GearOfPlayers[Player] = nil
+		end
+
+		if BaseOfPlayers[Player] then
+			BaseOfPlayers[Player]:Destroy()
+			BaseOfPlayers[Player] = nil
+		end
 	end,
 }
 
 Players.PlayerAdded:Connect(Framework.Join)
 Players.PlayerRemoving:Connect(Framework.Leave)
 
+local function GetEconomy(Player: Player): Types.Economy
+	local e = EconomyOfPlayers[Player]
+	assert(e, `No EconomyService instance found for {Player.Name}.`)
+	return e
+end
+
+local function GetGear(Player: Player): Types.Gear
+	local g = GearOfPlayers[Player]
+	assert(g, `No GearService instance found for {Player.Name}.`)
+	return g
+end
+
+local function GetBase(Player: Player): Types.Base
+	local b = BaseOfPlayers[Player]
+	assert(b, `No BaseService instance found for {Player.Name}.`)
+	return b
+end
+
 return {
-	Notification = {}, -- No dependencies
+	-- No dependencies --
+	Notification = {},
+
 	Gear = {
 		EquipGear = function(
 			Player: Player,
@@ -38,91 +74,81 @@ return {
 			ToolTip: string,
 			Model: Model | Folder,
 			GearId: number
-		)
-			local PlayerGear = GearOfPlayers[Player]
-			assert(PlayerGear, "PlayerGear not found.")
-			PlayerGear:EquipGear(GearType, Name, ToolTip, Model, GearId)
+		): ()
+			GetGear(Player):EquipGear(GearType, Name, ToolTip, Model, GearId)
 		end,
 
-		UnEquippedGear = function(Player: Player, GearId: number)
-			local PlayerGear = GearOfPlayers[Player]
-			assert(PlayerGear, "PlayerGear not found.")
-			PlayerGear:UnEquipGear(GearId)
+		UnEquipGear = function(Player: Player, GearId: number): ()
+			GetGear(Player):UnEquipGear(GearId)
 		end,
 
-		Get = function(Player: Player)
-			local PlayerGear = GearOfPlayers[Player]
-			assert(PlayerGear, "PlayerGear not found.")
-			return PlayerGear:Get()
+		Get = function(Player: Player): string
+			return GetGear(Player):Get()
 		end,
-	}, -- No dependencies
+	},
 
 	Economy = {
-		AddCurrency = function(Player: Player, Amount: number, Value: Types.EconomyData)
-			local PlayerEconomy = EconomyOfPlayers[Player]
-			assert(PlayerEconomy, "PlayerEconomy not found.")
-			PlayerEconomy:AddCurrency(Amount, Value)
+		AddCurrency = function(Player: Player, Amount: number, Value: Types.EconomyData): ()
+			GetEconomy(Player):AddCurrency(Amount, Value)
 		end,
 
-		RemoveCurrency = function(Player: Player, Amount: number, Value: Types.EconomyData)
-			local PlayerEconomy = EconomyOfPlayers[Player]
-			assert(PlayerEconomy, "PlayerEconomy not found.")
-			PlayerEconomy:RemoveCurrency(Amount, Value)
+		RemoveCurrency = function(Player: Player, Amount: number, Value: Types.EconomyData): ()
+			GetEconomy(Player):RemoveCurrency(Amount, Value)
 		end,
 
-		ResetCurrency = function(Player: Player, Value: string)
-			local PlayerEconomy = EconomyOfPlayers[Player]
-			assert(PlayerEconomy, "PlayerEconomy not found.")
-			PlayerEconomy:ResetCurrency(Value)
+		ResetCurrency = function(Player: Player, Value: Types.EconomyData): ()
+			GetEconomy(Player):ResetCurrency(Value)
 		end,
 
-		AddTable = function(Player: Player, InfoToBeChanged: string, InfoToBeAdded: string, Value: Types.EconomyData)
-			local PlayerEconomy = EconomyOfPlayers[Player]
-			assert(PlayerEconomy, "PlayerEconomy not found.")
-			PlayerEconomy:AddTable(InfoToBeChanged, InfoToBeAdded, Value)
-		end,
-
-		RemoveTable = function(
+		AddTable = function(
 			Player: Player,
 			InfoToBeChanged: string,
 			InfoToBeAdded: string,
 			Value: Types.EconomyData
-		)
-			local PlayerEconomy = EconomyOfPlayers[Player]
-			assert(PlayerEconomy, "PlayerEconomy not found.")
-			PlayerEconomy:RemoveTable(InfoToBeChanged, InfoToBeAdded, Value)
+		): ()
+			GetEconomy(Player):AddTable(InfoToBeChanged, InfoToBeAdded, Value)
 		end,
 
-		ResetTable = function(Player: Player, InfoToBeChanged: string)
-			local PlayerEconomy = EconomyOfPlayers[Player]
-			assert(PlayerEconomy, "PlayerEconomy not found.")
-			PlayerEconomy:ResetTable(InfoToBeChanged)
+		RemoveTable = function(
+			Player: Player,
+			InfoToBeChanged: Types.EconomyData,
+			InfoToBeRemoved: string,
+			Value: Types.EconomyData
+		): ()
+			GetEconomy(Player):RemoveTable(InfoToBeChanged, InfoToBeRemoved, Value)
 		end,
 
-		Destroy = function(Player: Player)
-			EconomyOfPlayers[Player] = nil
+		ResetTable = function(Player: Player, InfoToBeChanged: Types.EconomyData): ()
+			GetEconomy(Player):ResetTable(InfoToBeChanged)
 		end,
 
-		Get = function(Player: Player, Value: string): number? | string? | boolean? | { any? }
-			local PlayerEconomy = EconomyOfPlayers[Player]
-			assert(PlayerEconomy, "PlayerEconomy not found.")
-			return PlayerEconomy:Get(Value)
+		Get = function(Player: Player, Value: Types.EconomyData): number | string | { any? }
+			return GetEconomy(Player):Get(Value)
 		end,
-	}, -- Depends on DATA
+	},
 
-	-- Base based. --
+	Base = {
+		AddToBase = function(Player: Player): ()
+			GetBase(Player):AddToBase()
+		end,
+
+		RemoveFromBase = function(Player: Player): ()
+			GetBase(Player):RemoveFromBase()
+		end,
+	},
+
+	-- Base based.
 	Spawning = {}, -- Depends on BASE
-	Stealing = {}, -- Depends on BASE, SPAWNING --
+	Stealing = {}, -- Depends on BASE, SPAWNING
 
-	-- Economy based. --
-	Base = {}, -- Depends on ECONOMY
+	-- Economy based.
 	Production = {}, -- Depends on ECONOMY
-	Upgrade = {}, --  Depends on ECONOMY, BASE
+	Upgrade = {}, -- Depends on ECONOMY, BASE
 	Shop = {}, -- Depends on ECONOMY, GEAR
 	Selling = {}, -- Depends on ECONOMY, GEAR
 	Leaderboard = {}, -- Depends on ECONOMY
 
-	-- Special. --
+	-- Special.
 	Admin = {}, -- Depends on everything.
 	Anticheat = {}, -- Depends on everything.
 }

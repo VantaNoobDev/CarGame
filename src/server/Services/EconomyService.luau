@@ -20,35 +20,42 @@ DataService:init({
 local EconomyService = {}
 EconomyService.__index = EconomyService
 
+local PlayerCache: { [Player]: ServiceTypes.Economy } = {}
+
 function EconomyService.new(Player: Player): ServiceTypes.Economy
-	return setmetatable({
+	local self = setmetatable({
 		Player = Player,
-	}, EconomyService) :: any
+	}, EconomyService) :: ServiceTypes.Economy
+
+	PlayerCache[Player] = self
+	return self
 end
 
-function EconomyService:AddCurrency(Amount: number, Value: string): ()
+function EconomyService:AddCurrency(Amount: number, Value: ServiceTypes.EconomyData): ()
+	assert(Amount > 0, "Amount must be positive.")
 	DataService:update(self.Player, Value, function(CurrentAmount)
-		return CurrentAmount + math.abs(Amount)
+		return CurrentAmount + Amount
 	end)
 end
 
-function EconomyService:RemoveCurrency(Amount: number, Value: string): ()
+function EconomyService:RemoveCurrency(Amount: number, Value: ServiceTypes.EconomyData): ()
+	assert(Amount > 0, "Amount must be positive.") -- Fixed: was Amount < 0
 	DataService:update(self.Player, Value, function(CurrentAmount)
-		return CurrentAmount - math.abs(Amount)
+		return CurrentAmount - Amount
 	end)
 end
 
-function EconomyService:ResetCurrency(Value: string): ()
+function EconomyService:ResetCurrency(Value: ServiceTypes.EconomyData): ()
 	DataService:set(self.Player, Value, 0)
 end
 
-function EconomyService:AddTable(InfoToBeChanged: string, InfoToBeAdded: string, Value: string): ()
+function EconomyService:AddTable(InfoToBeChanged: string, InfoToBeAdded: string, Value: ServiceTypes.EconomyData): ()
 	DataService:update(self.Player, { InfoToBeChanged, InfoToBeAdded }, function(ValueThing)
 		if InfoToBeChanged == "Inventory" or InfoToBeChanged == "Index" then
 			return not ValueThing
 		end
 		if InfoToBeChanged == "Slots" or InfoToBeChanged == "RobloxInventory" then
-			return Value
+			return InfoToBeAdded -- Fixed: was Value
 		end
 		return ValueThing
 	end)
@@ -57,7 +64,7 @@ end
 function EconomyService:RemoveTable(
 	InfoToBeChanged: ServiceTypes.EconomyData,
 	InfoToBeRemoved: string,
-	Value: string
+	Value: ServiceTypes.EconomyData
 ): ()
 	DataService:update(self.Player, { InfoToBeChanged, InfoToBeRemoved }, function(ValueThing)
 		if InfoToBeChanged == "Inventory" or InfoToBeChanged == "Index" then
@@ -79,8 +86,18 @@ function EconomyService:ResetTable(InfoToBeChanged: ServiceTypes.EconomyData): (
 	end)
 end
 
-function EconomyService:Get(Value: string): number | string | { any? }
+function EconomyService:Get(Value: ServiceTypes.EconomyData): number | string | { any? }
 	return DataService:get(self.Player, Value)
+end
+
+function EconomyService:GetPlayerData(Player: Player): ServiceTypes.Economy?
+	return PlayerCache[Player]
+end
+
+function EconomyService:Destroy(): ()
+	PlayerCache[self.Player] = nil
+	self.Player = nil :: any
+	setmetatable(self, nil)
 end
 
 return EconomyService

@@ -6,11 +6,17 @@ local ServiceTypes = require(ServerScriptService.Server.Core.Types.ServiceTypes)
 local GearService = {}
 GearService.__index = GearService
 
+local PlayerCache: { [Player]: ServiceTypes.Gear } = {}
+
 function GearService.new(Player: Player): ServiceTypes.Gear
-	return setmetatable({
+	local self = setmetatable({
 		Player = Player,
 		EquippedItem = "",
-	}, GearService) :: any
+		_connections = {} :: { RBXScriptConnection },
+	}, GearService) :: ServiceTypes.Gear
+
+	PlayerCache[Player] = self
+	return self
 end
 
 function GearService:EquipGear(
@@ -29,46 +35,47 @@ function GearService:EquipGear(
 	local NewTool = Instance.new("Tool")
 	NewTool.ToolTip = ToolTip
 	NewTool.Name = Name
-
-	Model:Clone().Parent = NewTool
+	NewTool:SetAttribute("GearId", GearId)
 
 	local Handle = Instance.new("Part")
 	Handle.Name = "Handle"
-	Handle.Parent = NewTool
 
 	if Model:IsA("Model") then
 		assert(Model.PrimaryPart, "Primary part not found in model.")
-
 		Handle.Position = Model.PrimaryPart.Position
 		Handle.Size = Model.PrimaryPart.Size
+	else
+		local FirstPart = Model:FindFirstChildWhichIsA("BasePart")
+		if FirstPart then
+			Handle.Position = FirstPart.Position
+			Handle.Size = FirstPart.Size
+		end
 	end
+
+	Handle.Parent = NewTool
+	Model:Clone().Parent = NewTool
+
+	table.insert(
+		self._connections,
+		NewTool.Equipped:Connect(function()
+			self.EquippedItem = Name
+		end)
+	)
+
+	table.insert(
+		self._connections,
+		NewTool.Unequipped:Connect(function()
+			self.EquippedItem = ""
+		end)
+	)
 
 	NewTool.Parent = Backpack
 
 	local ToolClone = NewTool:Clone()
 	ToolClone.Parent = StarterGear
-
-	NewTool:SetAttribute("GearId", GearId)
-	ToolClone:SetAttribute("GearId", GearId)
-
-	NewTool.Equipped:Connect(function()
-		self.EquippedItem = Name
-	end)
-
-	ToolClone.Equipped:Connect(function()
-		self.EquippedItem = Name
-	end)
-
-	NewTool.Unequipped:Connect(function()
-		self.EquippedItem = ""
-	end)
-
-	ToolClone.Unequipped:Connect(function()
-		self.EquippedItem = ""
-	end)
 end
 
-function GearService:UnEquipGear(GearId: number)
+function GearService:UnEquipGear(GearId: number): ()
 	local Backpack = self.Player:FindFirstChild("Backpack") :: Folder
 	local StarterGear = self.Player:FindFirstChild("StarterGear") :: Folder
 
@@ -76,19 +83,35 @@ function GearService:UnEquipGear(GearId: number)
 	assert(StarterGear, "StarterGear not found, player is probably not loaded yet.")
 
 	for _, Tool in pairs(Backpack:GetChildren()) do
-		if Tool:GetAttribute("GearId") and Tool:GetAttribute("GearId") == GearId then
+		if Tool:GetAttribute("GearId") == GearId then
 			Tool:Destroy()
 		end
 	end
+
 	for _, Tool in pairs(StarterGear:GetChildren()) do
-		if Tool:GetAttribute("GearId") and Tool:GetAttribute("GearId") == GearId then
+		if Tool:GetAttribute("GearId") == GearId then
 			Tool:Destroy()
 		end
 	end
 end
 
-function GearService:Get()
+function GearService:GetPlayerData(Player: Player): ServiceTypes.Gear?
+	return PlayerCache[Player]
+end
+
+function GearService:Get(): string
 	return self.EquippedItem
+end
+
+function GearService:Destroy(): ()
+	for _, Connection in self._connections :: any do
+		Connection:Disconnect()
+	end
+
+	PlayerCache[self.Player] = nil
+	self.Player = nil :: any
+	self._connections = nil :: any
+	setmetatable(self, nil)
 end
 
 return GearService
