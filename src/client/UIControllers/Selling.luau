@@ -1,10 +1,8 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Red = require(ReplicatedStorage.Packages.Red)
 
-local OpenShopEvent = Red.Event("OpenShop", function(Value)
+local SellChoiceEvent = Red.Event("SellChoice", function(Value)
 	return Value
 end)
 
-OpenShopEvent:OnClient(function(Data)
-	-- open shop UI with Data
-end)
+SellChoiceEvent:Client():Fire("Equipped") -- or "Inventory"

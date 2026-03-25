@@ -3,6 +3,8 @@
 local ServerScriptService = game:GetService("ServerScriptService")
 local ServiceTypes = require(ServerScriptService.Server.Core.Types.ServiceTypes)
 
+-- ====================== GEAR SERVICE ======================
+
 local GearService = {}
 GearService.__index = GearService
 
@@ -13,10 +15,26 @@ function GearService.new(Player: Player): ServiceTypes.Gear
 		Player = Player,
 		EquippedItem = "",
 		_connections = {} :: { RBXScriptConnection },
+		_economy = nil :: any,
 	}, GearService) :: ServiceTypes.Gear
 
 	PlayerCache[Player] = self
 	return self
+end
+
+function GearService:SendDependencies(Deps: { [string]: any }): ()
+	self._economy = Deps.Economy
+	self._base = Deps.Base
+end
+
+-- ====================== GEAR ======================
+
+local function GetPlayerContainers(Player: Player): (Folder, Folder)
+	local Backpack = Player:FindFirstChild("Backpack") :: Folder
+	local StarterGear = Player:FindFirstChild("StarterGear") :: Folder
+	assert(Backpack, "Backpack not found, player is probably not loaded yet.")
+	assert(StarterGear, "StarterGear not found, player is probably not loaded yet.")
+	return Backpack, StarterGear
 end
 
 function GearService:EquipGear(
@@ -26,11 +44,7 @@ function GearService:EquipGear(
 	Model: Model | Folder,
 	GearId: number
 ): ()
-	local Backpack = self.Player:FindFirstChild("Backpack") :: Folder
-	local StarterGear = self.Player:FindFirstChild("StarterGear") :: Folder
-
-	assert(Backpack, "Backpack not found, player is probably not loaded yet.")
-	assert(StarterGear, "StarterGear not found, player is probably not loaded yet.")
+	local Backpack, StarterGear = GetPlayerContainers(self.Player)
 
 	local NewTool = Instance.new("Tool")
 	NewTool.ToolTip = ToolTip
@@ -70,38 +84,36 @@ function GearService:EquipGear(
 	)
 
 	NewTool.Parent = Backpack
-
-	local ToolClone = NewTool:Clone()
-	ToolClone.Parent = StarterGear
+	NewTool:Clone().Parent = StarterGear
 end
 
 function GearService:UnEquipGear(GearId: number): ()
-	local Backpack = self.Player:FindFirstChild("Backpack") :: Folder
-	local StarterGear = self.Player:FindFirstChild("StarterGear") :: Folder
+	local Backpack, StarterGear = GetPlayerContainers(self.Player)
 
-	assert(Backpack, "Backpack not found, player is probably not loaded yet.")
-	assert(StarterGear, "StarterGear not found, player is probably not loaded yet.")
-
-	for _, Tool in pairs(Backpack:GetChildren()) do
+	for _, Tool in Backpack:GetChildren() do
 		if Tool:GetAttribute("GearId") == GearId then
 			Tool:Destroy()
 		end
 	end
 
-	for _, Tool in pairs(StarterGear:GetChildren()) do
+	for _, Tool in StarterGear:GetChildren() do
 		if Tool:GetAttribute("GearId") == GearId then
 			Tool:Destroy()
 		end
 	end
 end
 
-function GearService:GetPlayerData(Player: Player): ServiceTypes.Gear?
+-- ====================== GETTERS ======================
+
+function GearService:GetEquipped(): string
+	return self.EquippedItem
+end
+
+function GearService.GetByPlayer(Player: Player): ServiceTypes.Gear?
 	return PlayerCache[Player]
 end
 
-function GearService:Get(): string
-	return self.EquippedItem
-end
+-- ====================== LIFECYCLE ======================
 
 function GearService:Destroy(): ()
 	for _, Connection in self._connections :: any do

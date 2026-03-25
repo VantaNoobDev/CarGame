@@ -1,6 +1,12 @@
+-- Framework.lua
 --!strict
---!native
+-- Public Framework for this template
+-- Fully automatic wrappers + automatic dependency injection
+
 local Players = game:GetService("Players")
+
+-- ====================== SERVICE REGISTRY ======================
+
 local Loader = require(script.Parent.Parent.Loader.Loader)
 local Services = Loader.Load(script.Parent.Parent.Services)
 local Types = require(script.Parent.Parent.Core.Types.ServiceTypes)
@@ -8,147 +14,115 @@ local Types = require(script.Parent.Parent.Core.Types.ServiceTypes)
 local EconomyService = Services.EconomyService :: Types.Economy
 local GearService = Services.GearService :: Types.Gear
 local BaseService = Services.BaseService :: Types.Base
+local SellingService = Services.SellingService :: Types.Selling
+local ShopService = Services.ShopService :: Types.Shop
+local StealingService = Services.StealingService :: Types.Stealing
+local SpawningService = Services.SpawningService :: Types.Spawning
 
-local EconomyOfPlayers: { [Player]: Types.Economy } = {}
-local GearOfPlayers: { [Player]: Types.Gear } = {}
-local BaseOfPlayers: { [Player]: Types.Base } = {}
-
-local Framework = {
-	Join = function(Player: Player): ()
-		EconomyOfPlayers[Player] = EconomyService.new(Player)
-		GearOfPlayers[Player] = GearService.new(Player)
-		BaseOfPlayers[Player] = BaseService.new(Player)
-
-		BaseOfPlayers[Player]:AddToBase()
-		GearOfPlayers[Player]:EquipGear("Usable", "Slap glove.", "Use it to slap people!", Instance.new("Model"), 1)
-	end,
-
-	Leave = function(Player: Player): ()
-		if EconomyOfPlayers[Player] then
-			EconomyOfPlayers[Player]:Destroy()
-			EconomyOfPlayers[Player] = nil
-		end
-
-		if GearOfPlayers[Player] then
-			GearOfPlayers[Player]:Destroy()
-			GearOfPlayers[Player] = nil
-		end
-
-		if BaseOfPlayers[Player] then
-			BaseOfPlayers[Player]:Destroy()
-			BaseOfPlayers[Player] = nil
-		end
-	end,
+type ServiceExample = {
+	new: (Player: Player) -> (),
 }
 
-Players.PlayerAdded:Connect(Framework.Join)
-Players.PlayerRemoving:Connect(Framework.Leave)
-
-local function GetEconomy(Player: Player): Types.Economy
-	local e = EconomyOfPlayers[Player]
-	assert(e, `No EconomyService instance found for {Player.Name}.`)
-	return e
-end
-
-local function GetGear(Player: Player): Types.Gear
-	local g = GearOfPlayers[Player]
-	assert(g, `No GearService instance found for {Player.Name}.`)
-	return g
-end
-
-local function GetBase(Player: Player): Types.Base
-	local b = BaseOfPlayers[Player]
-	assert(b, `No BaseService instance found for {Player.Name}.`)
-	return b
-end
-
-return {
-	-- No dependencies --
-	Notification = {},
-
-	Gear = {
-		EquipGear = function(
-			Player: Player,
-			GearType: Types.GearData,
-			Name: string,
-			ToolTip: string,
-			Model: Model | Folder,
-			GearId: number
-		): ()
-			GetGear(Player):EquipGear(GearType, Name, ToolTip, Model, GearId)
-		end,
-
-		UnEquipGear = function(Player: Player, GearId: number): ()
-			GetGear(Player):UnEquipGear(GearId)
-		end,
-
-		Get = function(Player: Player): string
-			return GetGear(Player):Get()
-		end,
-	},
-
-	Economy = {
-		AddCurrency = function(Player: Player, Amount: number, Value: Types.EconomyData): ()
-			GetEconomy(Player):AddCurrency(Amount, Value)
-		end,
-
-		RemoveCurrency = function(Player: Player, Amount: number, Value: Types.EconomyData): ()
-			GetEconomy(Player):RemoveCurrency(Amount, Value)
-		end,
-
-		ResetCurrency = function(Player: Player, Value: Types.EconomyData): ()
-			GetEconomy(Player):ResetCurrency(Value)
-		end,
-
-		AddTable = function(
-			Player: Player,
-			InfoToBeChanged: string,
-			InfoToBeAdded: string,
-			Value: Types.EconomyData
-		): ()
-			GetEconomy(Player):AddTable(InfoToBeChanged, InfoToBeAdded, Value)
-		end,
-
-		RemoveTable = function(
-			Player: Player,
-			InfoToBeChanged: Types.EconomyData,
-			InfoToBeRemoved: string,
-			Value: Types.EconomyData
-		): ()
-			GetEconomy(Player):RemoveTable(InfoToBeChanged, InfoToBeRemoved, Value)
-		end,
-
-		ResetTable = function(Player: Player, InfoToBeChanged: Types.EconomyData): ()
-			GetEconomy(Player):ResetTable(InfoToBeChanged)
-		end,
-
-		Get = function(Player: Player, Value: Types.EconomyData): number | string | { any? }
-			return GetEconomy(Player):Get(Value)
-		end,
-	},
-
-	Base = {
-		AddToBase = function(Player: Player): ()
-			GetBase(Player):AddToBase()
-		end,
-
-		RemoveFromBase = function(Player: Player): ()
-			GetBase(Player):RemoveFromBase()
-		end,
-	},
-
-	-- Base based.
-	Spawning = {}, -- Depends on BASE
-	Stealing = {}, -- Depends on BASE, SPAWNING
-
-	-- Economy based.
-	Production = {}, -- Depends on ECONOMY
-	Upgrade = {}, -- Depends on ECONOMY, BASE
-	Shop = {}, -- Depends on ECONOMY, GEAR
-	Selling = {}, -- Depends on ECONOMY, GEAR
-	Leaderboard = {}, -- Depends on ECONOMY
-
-	-- Special.
-	Admin = {}, -- Depends on everything.
-	Anticheat = {}, -- Depends on everything.
+local ServiceClasses = {
+	Economy = EconomyService,
+	Gear = GearService,
+	Base = BaseService,
+	Selling = SellingService,
+	Shop = ShopService,
+	Stealing = StealingService,
+	Spawning = SpawningService,
 }
+
+local ServiceDependencies: { [string]: { string } } = {
+	Economy = {},
+	Gear = { "Economy", "Base" },
+	Base = { "Economy" },
+	Selling = { "Economy", "Gear" },
+	Shop = { "Economy", "Gear" },
+	Stealing = { "Economy", "Gear" },
+	Spawning = { "Economy", "Gear" },
+}
+
+-- ====================== INTERNAL STATE ======================
+
+local PlayerServices: { [Player]: { [string]: any } } = {}
+
+-- ====================== PLAYER JOIN / LEAVE ======================
+
+local function OnPlayerAdded(Player: Player)
+	local ServiceInstances: { [string]: any } = {}
+	for ServiceName, Class in pairs(ServiceClasses) do
+		local TypedClass = Class :: ServiceExample
+		local NewFn = TypedClass.new
+		if NewFn and typeof(NewFn) == "function" then
+			ServiceInstances[ServiceName :: string] = TypedClass.new(Player)
+		end
+	end
+
+	for ServiceName, Deps in pairs(ServiceDependencies) do
+		local Service = ServiceInstances[ServiceName]
+		if Service.SendDependencies and typeof(Service.SendDependencies) == "function" then
+			local DepInstances: { [string]: any } = {}
+			for _, DepName in ipairs(Deps) do
+				DepInstances[DepName] = ServiceInstances[DepName]
+			end
+			(Service.SendDependencies :: (any, { [string]: any }) -> ())(Service, DepInstances)
+		end
+	end
+
+	PlayerServices[Player] = ServiceInstances
+end
+
+local function OnPlayerRemoving(Player: Player)
+	local Services = PlayerServices[Player]
+	if Services then
+		for _, Service in pairs(Services) do
+			if Service and typeof(Service.Destroy) == "function" then
+				pcall(Service.Destroy :: (any) -> (), Service)
+			end
+		end
+		PlayerServices[Player] = nil
+	end
+end
+
+Players.PlayerAdded:Connect(OnPlayerAdded)
+Players.PlayerRemoving:Connect(OnPlayerRemoving)
+
+-- ====================== WRAPPERS ======================
+
+local Framework: { [string]: any } = {}
+
+for ServiceName, _ in pairs(ServiceClasses) do
+	Framework[ServiceName] = setmetatable({}, {
+		__index = function(_, MethodName: string)
+			return function(FirstArg, ...: any)
+				local TargetPlayer: Player
+				local Args: { any } = { ... }
+
+				if typeof(FirstArg) == "Instance" and FirstArg:IsA("Player") then
+					TargetPlayer = FirstArg
+				else
+					TargetPlayer = Args[1]
+					table.remove(Args, 1)
+				end
+
+				local PlayerServiceMap = PlayerServices[TargetPlayer]
+				assert(
+					PlayerServiceMap and PlayerServiceMap[ServiceName],
+					`No {ServiceName} service found for {TargetPlayer.Name}`
+				)
+
+				local Method = PlayerServiceMap[ServiceName][MethodName]
+				assert(Method, `Method {MethodName} does not exist on {ServiceName} service`)
+
+				return (Method :: (any, ...any) -> ...any)(PlayerServiceMap[ServiceName], table.unpack(Args))
+			end
+		end,
+	})
+end
+
+return setmetatable(Framework, {
+	__newindex = function()
+		error("Framework is read-only")
+	end,
+})
