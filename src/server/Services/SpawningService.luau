@@ -138,28 +138,6 @@ local PlayerCache: { [Player]: ServiceTypes.Spawning } = {}
 RegisterStands()
 StartStandLoop()
 
-function SpawningService.new(Player: Player): ServiceTypes.Spawning
-	local self = setmetatable({
-		Player = Player,
-		_monster = nil :: Model?,
-		_stealBase = nil :: Instance?,
-		_stolenItem = nil :: Instance?,
-		_standId = nil :: number?,
-		_isChasing = false,
-		_connections = {} :: { RBXScriptConnection },
-		_economy = nil :: any,
-		_gear = nil :: any,
-	}, SpawningService) :: ServiceTypes.Spawning
-
-	PlayerCache[Player] = self
-	return self
-end
-
-function SpawningService:SendDependencies(Deps: { [string]: any }): ()
-	self._economy = Deps.Economy
-	self._gear = Deps.Gear
-end
-
 -- ====================== MONSTER ======================
 
 local function SpawnMonster(_StealBase: Instance): Model
@@ -174,18 +152,41 @@ local function DespawnMonster(Monster: Model): ()
 	Monster:Destroy()
 end
 
+function SpawningService:SendDependencies(Deps: { [string]: any }): ()
+	self._economy = Deps.Economy
+	self._gear = Deps.Gear
+end
+
 -- ====================== CHASE ======================
 
-function SpawningService:StartChase(StealBase: Instance, StolenItem: Instance, StandId: number): ()
+function SpawningService.new(Player: Player): ServiceTypes.Spawning
+	local self = setmetatable({
+		Player = Player,
+		_monster = nil :: Model?,
+		_stealBase = nil :: Instance?,
+		_stolenItem = nil :: Instance?,
+		_standId = nil :: number?,
+		_itemKey = nil :: string?,
+		_isChasing = false,
+		_connections = {} :: { RBXScriptConnection },
+		_economy = nil :: any,
+		_gear = nil :: any,
+	}, SpawningService) :: ServiceTypes.Spawning
+
+	PlayerCache[Player] = self
+	return self
+end
+
+function SpawningService:StartChase(StealBase: Instance, StolenItem: Instance, StandId: number, ItemKey: string): ()
 	assert(not self._isChasing, "Player is already being chased.")
 
 	self._stealBase = StealBase
 	self._stolenItem = StolenItem
 	self._standId = StandId
+	self._itemKey = ItemKey
 	self._isChasing = true
 	self._monster = SpawnMonster(StealBase)
 
-	-- Notify stand registry
 	OnItemStolen(StandId)
 
 	table.insert(
@@ -209,6 +210,12 @@ end
 function SpawningService:_OnPlayerEscaped(): ()
 	self._isChasing = false
 
+	-- Player escaped — award item to inventory
+	local Economy = self._economy :: any
+	if Economy and self._itemKey then
+		Economy:AddToTable("Inventory", self._itemKey)
+	end
+
 	if self._monster then
 		DespawnMonster(self._monster)
 		self._monster = NIL_MODEL
@@ -217,28 +224,26 @@ function SpawningService:_OnPlayerEscaped(): ()
 	self._stealBase = nil
 	self._stolenItem = nil
 	self._standId = nil
+	self._itemKey = nil
 	self:_ClearConnections()
 end
 
 function SpawningService:_OnPlayerCaught(): ()
 	self._isChasing = false
 
-	-- Return stolen item to steal base stand
+	-- Player caught — return item to stand, don't award inventory
 	if self._stolenItem and self._stealBase and self._standId then
 		self._stolenItem.Parent = Stands[self._standId].Slot
 		Stands[self._standId].HasItem = true
 		Stands[self._standId].LastSpawnTime = os.clock()
-		self._stolenItem = { Parent = nil }
+		self._stolenItem = NIL_MODEL
 	end
 
-	-- Strip item from player
-	local Economy = self._economy :: any
 	local Gear = self._gear :: any
-	if Economy and Gear then
+	if Gear then
 		local Equipped: string = Gear:GetEquipped()
 		if Equipped ~= "" then
 			Gear:UnEquipGear(Equipped)
-			Economy:RemoveFromTable("Inventory", Equipped)
 		end
 	end
 
@@ -251,6 +256,7 @@ function SpawningService:_OnPlayerCaught(): ()
 
 	self._stealBase = nil
 	self._standId = nil
+	self._itemKey = nil
 	self:_ClearConnections()
 end
 

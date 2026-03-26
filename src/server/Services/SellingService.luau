@@ -21,7 +21,7 @@ SellingService.__index = SellingService
 
 local PlayerCache: { [Player]: ServiceTypes.Selling } = {}
 
-function SellingService.New(Player: Player): ServiceTypes.Selling
+function SellingService.new(Player: Player): ServiceTypes.Selling
 	local self = setmetatable({
 		Player = Player,
 		_economy = nil :: any,
@@ -50,6 +50,7 @@ end
 
 function SellingService:AssignStand(Stand: Model | Folder | BasePart): ()
 	assert(not self._stand, "Player already has a stand assigned.")
+	assert(Stand, "Stand is nil.")
 	self._stand = Stand
 	self:_SetupPrompt()
 end

@@ -15,6 +15,7 @@ function StealingService.new(Player: Player): ServiceTypes.Stealing
 		Player = Player,
 		_economy = nil :: any,
 		_gear = nil :: any,
+		_spawning = nil :: any,
 		_connections = {} :: { RBXScriptConnection },
 	}, StealingService) :: ServiceTypes.Stealing
 
@@ -25,6 +26,7 @@ end
 function StealingService:SendDependencies(Deps: { [string]: any }): ()
 	self._economy = Deps.Economy
 	self._gear = Deps.Gear
+	self._spawning = Deps.Spawning
 end
 
 -- ====================== SETUP ======================
@@ -63,24 +65,28 @@ end
 -- ====================== STEALING ======================
 
 function StealingService:_OnSteal(Interactor: Player, Slot: Instance): ()
-	local Economy = PlayerCache[Interactor] and PlayerCache[Interactor]._economy :: any
-	local Gear = PlayerCache[Interactor] and PlayerCache[Interactor]._gear :: any
-	assert(Economy and Gear, "Player services not loaded.")
+	local InteractorServices = PlayerCache[Interactor]
+	assert(InteractorServices, "Player services not loaded.")
 
-	-- Find the item on the stand
+	local Economy = InteractorServices._economy :: any
+	local Gear = InteractorServices._gear :: any
+	local Spawning = InteractorServices._spawning :: any
+	assert(Economy and Gear and Spawning, "Player services not loaded.")
+
 	local Item = Slot:FindFirstChildWhichIsA("Model")
 	assert(Item, "No item found on stand.")
 
 	local ItemKey = Item.Name
-
-	-- Add to inventory and backpack
-	Economy:AddToTable("Inventory", ItemKey)
-	Gear:EquipGear("Usable", ItemKey, ItemKey, Item, 0)
+	local StandId = Slot:GetAttribute("StandId") :: number
+	assert(StandId, "Stand has no ID assigned.")
 
 	-- Remove from stand
 	Item:Destroy()
 
-	-- TODO: spawn monster from Base to chase Interactor
+	-- TODO: put item in player's hands here
+
+	-- Start chase — inventory is awarded/denied inside SpawningService
+	Spawning:StartChase(Slot.Parent, Item, StandId, ItemKey)
 end
 
 -- ====================== GETTERS ======================

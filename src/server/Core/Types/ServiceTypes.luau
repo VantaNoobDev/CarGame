@@ -116,6 +116,7 @@ export type Stealing = {
 	Player: Player,
 	_economy: any,
 	_gear: any,
+	_spawning: any,
 	_connections: { RBXScriptConnection },
 
 	new: (Player: Player) -> Stealing,
